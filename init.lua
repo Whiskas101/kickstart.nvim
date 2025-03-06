@@ -82,7 +82,7 @@ I hope you enjoy your Neovim journey,
 - TJ
 
 P.S. You can delete this when you're done too. It's your config now! :)
---]]
+-- ]]
 
 -- Set <space> as the leader key
 -- See `:help mapleader`
@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
@@ -114,9 +114,11 @@ vim.opt.showmode = false
 --  Schedule the setting after `UiEnter` because it can increase startup-time.
 --  Remove this option if you want your OS clipboard to remain independent.
 --  See `:help 'clipboard'`
-vim.schedule(function()
-  vim.opt.clipboard = 'unnamedplus'
-end)
+--
+--  [Removing this option because I like the flexibility of seperating vim clip vs sys clip]
+--vim.schedule(function()
+-- vim.opt.clipboard = 'unnamedplus'
+-- end)
 
 -- Enable break indent
 vim.opt.breakindent = true
@@ -451,6 +453,38 @@ require('lazy').setup({
       },
     },
   },
+
+  -- Zen mode for peace of mind
+  --
+  -- {
+  -- 'folke/zen-mode.nvim',
+  -- opts = {},
+  -- },
+
+  -- Oil for managing the creation and deletion of files
+  {
+    'stevearc/oil.nvim',
+    ---@module 'oil'
+    ---@type oil.SetupOpts
+    opts = {},
+    -- Optional dependencies
+    dependencies = { { 'echasnovski/mini.icons', opts = {} } },
+    -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if you prefer nvim-web-devicons
+    -- Lazy loading is not recommended because it is very tricky to make it work correctly in all situations.
+    lazy = false,
+  },
+
+  -- For flutter specific stuff
+  {
+    'nvim-flutter/flutter-tools.nvim',
+    lazy = false,
+    dependencies = {
+      'nvim-lua/plenary.nvim',
+      -- 'stevearc/dressing.nvim', -- optional for vim.ui.select
+    },
+    config = true,
+  },
+
   {
     -- Main LSP Configuration
     'neovim/nvim-lspconfig',
@@ -970,6 +1004,18 @@ require('lazy').setup({
     },
   },
 })
+
+-- for allowing <ctrl-/> to comment lines in NORMAL mode
+vim.keymap.set('n', '<C-_>', function()
+  require('mini.comment').toggle_lines(vim.fn.line '.', vim.fn.line '.')
+end, { desc = 'Toggle comment' })
+
+vim.keymap.set('v', '<C-_>', function()
+  local s_line = vim.fn.line 'v'
+  local e_line = vim.fn.line '.'
+
+  require('mini.comment').toggle_lines(s_line, e_line)
+end, { desc = 'Toggle comments' })
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
