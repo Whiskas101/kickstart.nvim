@@ -455,11 +455,24 @@ require('lazy').setup({
   },
 
   -- Zen mode for peace of mind
-  --
-  -- {
-  -- 'folke/zen-mode.nvim',
-  -- opts = {},
-  -- },
+
+  {
+    'folke/zen-mode.nvim',
+    opts = {
+      window = {
+        width = 155,
+      },
+    },
+    keys = {
+      {
+        '<leader>zm',
+        function()
+          require('zen-mode').toggle()
+        end,
+        desc = '[Z]en [M]ode',
+      },
+    },
+  },
 
   -- Oil for managing the creation and deletion of files
   {
