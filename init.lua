@@ -102,7 +102,7 @@ vim.g.have_nerd_font = true
 vim.opt.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -480,6 +480,24 @@ require('lazy').setup({
     ---@module 'oil'
     ---@type oil.SetupOpts
     opts = {},
+    view_options = { show_hidden = true },
+    columns = {
+      'icon', -- shows file icon
+      'size', -- file size
+      'mtime', -- last modified time
+      'permissions', -- file permissions
+      'git_status', -- git info (requires `git_status` adapter)
+    },
+
+    recipes = {
+      'git_status',
+      'basic',
+      'column_size',
+      'column_icon',
+      'column_modified',
+      'column_git_status',
+    },
+
     -- Optional dependencies
     dependencies = { { 'echasnovski/mini.icons', opts = {} } },
     -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if you prefer nvim-web-devicons
@@ -825,11 +843,13 @@ require('lazy').setup({
         -- No, but seriously. Please read `:help ins-completion`, it is really good!
         mapping = cmp.mapping.preset.insert {
           -- Select the [n]ext item
-          -- ['<C-n>'] = cmp.mapping.select_next_item(),
+          ['<C-n>'] = cmp.mapping.select_next_item(),
+          ['<C-p>'] = cmp.mapping.select_prev_item(),
+
           -- Update this to reflect how typical cursor movement is in neovim
-          ['<C-j>'] = cmp.mapping.select_next_item(),
+          -- ['<C-j>'] = cmp.mapping.select_next_item(),
           -- Select the [p]revious item
-          ['<C-k>'] = cmp.mapping.select_prev_item(),
+          -- ['<C-k>'] = cmp.mapping.select_prev_item(),
 
           -- Scroll the documentation window [b]ack / [f]orward
           ['<C-b>'] = cmp.mapping.scroll_docs(-4),
@@ -983,12 +1003,12 @@ require('lazy').setup({
   --  Here are some example plugins that I've included in the Kickstart repository.
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
-  -- require 'kickstart.plugins.debug',
-  -- require 'kickstart.plugins.indent_line',
-  -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'kickstart.plugins.debug',
+  require 'kickstart.plugins.indent_line',
+  require 'kickstart.plugins.lint',
+  require 'kickstart.plugins.autopairs',
+  require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
