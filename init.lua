@@ -119,6 +119,12 @@ vim.opt.showmode = false
 --vim.schedule(function()
 -- vim.opt.clipboard = 'unnamedplus'
 -- end)
+--
+
+-- Enable treesitter based folding
+vim.opt.foldmethod = 'expr'
+vim.opt.foldexpr = 'nvim_treesitter#foldexpr()'
+vim.opt.foldlevel = 99
 
 -- Enable break indent
 vim.opt.breakindent = true
@@ -167,6 +173,30 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+
+-- -- Jump to next diagnostic (error)
+-- vim.keymap.set('n', '<leader>en', vim.diagnostic.goto_next, { desc = 'N[e]xt diag[n]ostic' })
+--
+-- -- Jump to previous diagnostic
+-- vim.keymap.set('n', '<leader>ep', vim.diagnostic.goto_prev, { desc = 'Pr[e]vious diag[n]ostic' })
+vim.keymap.set('n', '<leader>ne', function()
+  vim.diagnostic.goto_next { severity = vim.diagnostic.severity.ERROR }
+end, { desc = '[N]ext [E]rror' })
+
+vim.keymap.set('n', '<leader>pe', function()
+  vim.diagnostic.goto_prev { severity = vim.diagnostic.severity.ERROR }
+end, { desc = '[P]rev [E]rror' })
+
+-- Mapping diagnostic float: For the cases when text overflows horizontally,
+-- off the screen
+vim.keymap.set('n', '<leader>e', function()
+  vim.diagnostic.open_float(nil, {
+    focusable = false,
+    border = 'rounded',
+    source = 'always',
+    scope = 'cursor',
+  })
+end, { desc = 'Show diagnostics under cursor' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -471,6 +501,22 @@ require('lazy').setup({
         end,
         desc = '[Z]en [M]ode',
       },
+    },
+  },
+  -- For the fancy ninja cursor effect via smear cusor
+  {
+    'sphamba/smear-cursor.nvim',
+    opts = {
+      -- cursor_color = '#ff8800',
+      stiffness = 0.3,
+      trailing_stiffness = 0.05,
+      damping = 0.5,
+      trailing_exponent = 10,
+      never_draw_over_target = true,
+      hide_target_hack = true,
+      gamma = 0.7,
+      distance_stop_animating = 1,
+      time_interval = 17, -- 17 ms fr
     },
   },
 
@@ -837,7 +883,7 @@ require('lazy').setup({
         },
         completion = { completeopt = 'menu,menuone,noinsert' },
 
-        -- For an understanding of why these mappings were
+        -- For an understanding of why these mappings wereini
         -- chosen, you will need to read `:help ins-completion`
         --
         -- No, but seriously. Please read `:help ins-completion`, it is really good!
