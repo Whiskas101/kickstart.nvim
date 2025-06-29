@@ -509,7 +509,7 @@ require('lazy').setup({
     opts = {
       -- cursor_color = '#ff8800',
       stiffness = 0.3,
-      trailing_stiffness = 0.05,
+      trailing_stiffness = 0.13,
       damping = 0.5,
       trailing_exponent = 10,
       never_draw_over_target = true,
