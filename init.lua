@@ -122,9 +122,9 @@ vim.opt.showmode = false
 --
 
 -- Enable treesitter based folding
-vim.opt.foldmethod = 'expr'
-vim.opt.foldexpr = 'nvim_treesitter#foldexpr()'
-vim.opt.foldlevel = 99
+-- vim.opt.foldmethod = 'expr'
+-- vim.opt.foldexpr = 'nvim_treesitter#foldexpr()'
+-- vim.opt.foldlevel = 99
 
 -- Enable break indent
 vim.opt.breakindent = true
@@ -516,7 +516,7 @@ require('lazy').setup({
       hide_target_hack = true,
       gamma = 0.7,
       distance_stop_animating = 1,
-      time_interval = 17, -- 17 ms fr
+      time_interval = 32, -- 30fps  fr
     },
   },
 
