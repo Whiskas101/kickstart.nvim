@@ -45,7 +45,7 @@ Kickstart Guide:
 
   TODO: The very first thing you should do is to run the command `:Tutor` in Neovim.
 
-    If you don't know what this means, type the following:
+    If you don't =know what this means, type the following:
       - <escape key>
       - :
       - Tutor
@@ -261,6 +261,7 @@ vim.opt.rtp:prepend(lazypath)
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
+  'tpope/vim-fugitive', -- For smooth git in neovim C:
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -273,7 +274,7 @@ require('lazy').setup({
   -- options to `gitsigns.nvim`. This is equivalent to the following Lua:
   --    require('gitsigns').setup({ ... })
   --
-  -- See `:help gitsigns` to understand what the configuration keys do
+  -- See `:help gitsigns` to understand what the configuration keys doini
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
     opts = {
@@ -370,6 +371,7 @@ require('lazy').setup({
     event = 'VimEnter',
     branch = '0.1.x',
     dependencies = {
+      'debugloop/telescope-undo.nvim',
       'nvim-lua/plenary.nvim',
       { -- If encountering errors, see telescope-fzf-native README for installation instructions
         'nvim-telescope/telescope-fzf-native.nvim',
@@ -557,7 +559,10 @@ require('lazy').setup({
     lazy = false,
     dependencies = {
       'nvim-lua/plenary.nvim',
-      -- 'stevearc/dressing.nvim', -- optional for vim.ui.select
+      'stevearc/dressing.nvim', -- optional for vim.ui.select
+    },
+    opts = {
+      fvm = true,
     },
     config = true,
   },
