@@ -69,6 +69,28 @@ return {
       end,
       desc = 'Debug: Set Breakpoint',
     },
+    {
+      '<leader>bA',
+      function()
+        require('dap').set_exception_breakpoints { 'uncaught', 'raised' }
+      end,
+      desc = 'Debug: Break on all exceptions',
+    },
+    {
+      '<leader>bU',
+      function()
+        require('dap').set_exception_breakpoints { 'uncaught' }
+      end,
+      desc = 'Debug: Break on uncaught exceptions',
+    },
+    {
+      '<leader>bC',
+      function()
+        require('dap').set_exception_breakpoints {}
+      end,
+      desc = 'Debug: Clear Exception Filters',
+    },
+
     -- Toggle to see last session result. Without this, you can't see session output in case of unhandled exception.
     {
       '<F7>',
