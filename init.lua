@@ -295,6 +295,7 @@ require('lazy').setup({
     opts = {}, -- lazy.nvim will implicitly calls `setup {}`
   },
 
+
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
   -- This is often very useful to both group configuration, as well as handle
@@ -1117,6 +1118,29 @@ vim.keymap.set('v', '<C-_>', function()
 
   require('mini.comment').toggle_lines(s_line, e_line)
 end, { desc = 'Toggle comments' })
+
+
+vim.api.nvim_create_autocmd("FileType",
+  {
+    pattern = "typst",
+    callback = function ()
+      local watch_typst_file = function ()
+        local file = vim.fn.expand("%:p")
+        local git_dir = vim.fn.finddir('.git', '.;')
+        if git_dir == "" then return print("No git route found") end
+        local root = vim.fn.fnamemodify(git_dir, ":h")
+        local name = vim.fn.expand('%:t:r')
+        local output = root .. '/build/' .. name .. '.pdf'
+        local cmd = string.format('typst watch --root "%s" "%s" "%s"', root, file, output)
+
+        vim.cmd('split | term '.. cmd)
+
+      end
+      vim.api.nvim_buf_create_user_command(0, 'TWatch', watch_typst_file, {})
+
+    end
+  }
+)
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
