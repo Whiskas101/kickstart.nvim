@@ -288,6 +288,13 @@ require('lazy').setup({
     },
   },
 
+  {
+    'chomosuke/typst-preview.nvim',
+    lazy = false, -- or ft = 'typst'
+    version = '1.*',
+    opts = {}, -- lazy.nvim will implicitly calls `setup {}`
+  },
+
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
   -- This is often very useful to both group configuration, as well as handle
@@ -732,7 +739,13 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {
+          cmd={
+            'clangd',
+            '--background-index',
+            '--query-driver=C:/msys64/ucrt64/bin/*'
+          }
+        },
         -- gopls = {},
         -- pyright = {},
         -- rust_analyzer = {},
