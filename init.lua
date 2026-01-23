@@ -262,7 +262,34 @@ require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
   'tpope/vim-fugitive', -- For smooth git in neovim C:
-
+  {
+    'tpope/vim-dadbod',
+    dependencies = {
+      'kristijanhusak/vim-dadbod-ui',
+      'kristijanhusak/vim-dadbod-completion',
+    },
+    config = function()
+      vim.g.db_ui_save_location = vim.fn.stdpath 'config' .. '/db_queries'
+      vim.g.db_ui_use_nerd_fonts = 1
+      vim.g.db_ui_win_width = 35
+      vim.g.db_ui_auto_execute_table_helpers = 1
+      vim.g.db_ui_hide_schemas = {
+        'information_schema',
+        -- 'pg_*'
+      }
+      vim.g.db_ui_table_helpers = {
+        postgresql = {
+          List = 'select\n*\nfrom {table}\nLIMIT 50',
+          Find = "select\n*\nfrom {table}\n--where temp\n--ilike '%val%' \nLIMIT 50",
+          Count = 'select\ncount(*)\nfrom {table}\n',
+          Explain = 'EXPLAIN ANALYZE select * from {table}',
+        },
+        sqlite = {
+          Describe = 'PRAGMA table_info("{table}")',
+        },
+      }
+    end,
+  },
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
   -- keys can be used to configure plugin behavior/loading/etc.
@@ -516,17 +543,27 @@ require('lazy').setup({
   {
     'sphamba/smear-cursor.nvim',
     opts = {
-      -- cursor_color = '#ff8800',
+      cursor_color = '#ff8800',
       stiffness = 0.3,
-      trailing_stiffness = 0.13,
+      trailing_stiffness = 0.1,
       damping = 0.5,
-      trailing_exponent = 10,
+      trailing_exponent = 5,
       never_draw_over_target = true,
       hide_target_hack = true,
-      gamma = 0.7,
-      distance_stop_animating = 1,
-      time_interval = 32, -- 30fps  fr
+      gamma = 1,
     },
+    -- opts = {
+    --   -- cursor_color = '#ff8800',
+    --   stiffness = 0.3,
+    --   trailing_stiffness = 0.13,
+    --   damping = 0.5,
+    --   trailing_exponent = 10,
+    --   never_draw_over_target = true,
+    --   hide_target_hack = true,
+    --   gamma = 0.7,
+    --   distance_stop_animating = 1,
+    --   time_interval = 32, -- 30fps  fr
+    -- },
   },
 
   -- Oil for managing the creation and deletion of files
@@ -713,14 +750,14 @@ require('lazy').setup({
       })
 
       -- Change diagnostic symbols in the sign column (gutter)
-      -- if vim.g.have_nerd_font then
-      --   local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
-      --   local diagnostic_signs = {}
-      --   for type, icon in pairs(signs) do
-      --     diagnostic_signs[vim.diagnostic.severity[type]] = icon
-      --   end
-      --   vim.diagnostic.config { signs = { text = diagnostic_signs } }
-      -- end
+      if vim.g.have_nerd_font then
+        local signs = { ERROR = '', WARN = '', INFO = '', HINT = '' }
+        local diagnostic_signs = {}
+        for type, icon in pairs(signs) do
+          diagnostic_signs[vim.diagnostic.severity[type]] = icon
+        end
+        vim.diagnostic.config { signs = { text = diagnostic_signs } }
+      end
 
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
@@ -740,11 +777,11 @@ require('lazy').setup({
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
         clangd = {
-          cmd={
+          cmd = {
             'clangd',
             '--background-index',
-            '--query-driver=C:/msys64/ucrt64/bin/*'
-          }
+            '--query-driver=C:/msys64/ucrt64/bin/*',
+          },
         },
         -- gopls = {},
         -- pyright = {},
@@ -1117,6 +1154,43 @@ vim.keymap.set('v', '<C-_>', function()
 
   require('mini.comment').toggle_lines(s_line, e_line)
 end, { desc = 'Toggle comments' })
+
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'typst',
+  callback = function()
+    local watch_typst_file = function()
+      local file = vim.fn.expand '%:p'
+      local git_dir = vim.fn.finddir('.git', '.;')
+      if git_dir == '' then
+        return print 'No git route found'
+      end
+      local root = vim.fn.fnamemodify(git_dir, ':h')
+      local name = vim.fn.expand '%:t:r'
+      local output = root .. '/build/' .. name .. '.pdf'
+      local cmd = string.format('typst watch --root "%s" "%s" "%s"', root, file, output)
+
+      vim.cmd('split | term ' .. cmd)
+    end
+    vim.api.nvim_buf_create_user_command(0, 'TWatch', watch_typst_file, {})
+  end,
+})
+
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'sql', 'mysql', 'plsql' },
+  callback = function()
+    require('cmp').setup.buffer {
+      sources = {
+        { name = 'vim-dadbod-completion' },
+        { name = 'buffer' },
+      },
+    }
+  end,
+})
+
+vim.opt.tabstop = 2 -- Number of spaces a tab counts for
+vim.opt.softtabstop = 2 -- Number of spaces a tab counts for while editing
+vim.opt.shiftwidth = 2 -- Size of an indent
+vim.opt.expandtab = true -- Use spaces instead of tabs
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
