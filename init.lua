@@ -122,9 +122,9 @@ vim.opt.showmode = false
 --
 
 -- Enable treesitter based folding
--- vim.opt.foldmethod = 'expr'
--- vim.opt.foldexpr = 'nvim_treesitter#foldexpr()'
--- vim.opt.foldlevel = 99
+vim.opt.foldmethod = 'expr'
+vim.opt.foldexpr = 'nvim_treesitter#foldexpr()'
+vim.opt.foldlevel = 99
 
 -- Enable break indent
 vim.opt.breakindent = true
@@ -289,6 +289,21 @@ require('lazy').setup({
         },
       }
     end,
+  },
+  {
+    'mistweaverco/kulala.nvim',
+    keys = {
+      { '<leader>Rs', desc = 'Send request' },
+      { '<leader>Ra', desc = 'Send all requests' },
+      { '<leader>Rb', desc = 'Open scratchpad' },
+    },
+    ft = { 'http', 'rest' },
+    opts = {
+      global_keymaps = true,
+      global_keymaps_prefix = '<leader>R',
+      kulala_keymaps_prefix = '',
+      urlencode = 'skipencoded',
+    },
   },
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -543,31 +558,31 @@ require('lazy').setup({
     },
   },
   -- For the fancy ninja cursor effect via smear cusor
-  {
-    'sphamba/smear-cursor.nvim',
-    opts = {
-      cursor_color = '#ff8800',
-      stiffness = 0.3,
-      trailing_stiffness = 0.1,
-      damping = 0.5,
-      trailing_exponent = 5,
-      never_draw_over_target = true,
-      hide_target_hack = true,
-      gamma = 1,
-    },
-    -- opts = {
-    --   -- cursor_color = '#ff8800',
-    --   stiffness = 0.3,
-    --   trailing_stiffness = 0.13,
-    --   damping = 0.5,
-    --   trailing_exponent = 10,
-    --   never_draw_over_target = true,
-    --   hide_target_hack = true,
-    --   gamma = 0.7,
-    --   distance_stop_animating = 1,
-    --   time_interval = 32, -- 30fps  fr
-    -- },
-  },
+  -- {
+  --   'sphamba/smear-cursor.nvim',
+  --   opts = {
+  --     cursor_color = '#ff8800',
+  --     stiffness = 0.3,
+  --     trailing_stiffness = 0.1,
+  --     damping = 0.5,
+  --     trailing_exponent = 5,
+  --     never_draw_over_target = true,
+  --     hide_target_hack = true,
+  --     gamma = 1,
+  --   },
+  --   -- opts = {
+  --   --   -- cursor_color = '#ff8800',
+  --   --   stiffness = 0.3,
+  --   --   trailing_stiffness = 0.13,
+  --   --   damping = 0.5,
+  --   --   trailing_exponent = 10,
+  --   --   never_draw_over_target = true,
+  --   --   hide_target_hack = true,
+  --   --   gamma = 0.7,
+  --   --   distance_stop_animating = 1,
+  --   --   time_interval = 32, -- 30fps  fr
+  --   -- },
+  -- },
 
   -- Oil for managing the creation and deletion of files
   {
@@ -1083,6 +1098,17 @@ require('lazy').setup({
       auto_install = true,
       highlight = {
         enable = true,
+        disable = function(lang, buf)
+          local max_file_size = 250 * 1024 -- 250 kilobytes
+          local ok, stats = pcall(vim.loop.fs_stat, vim.api.nvim_buf_get_name(buf))
+          if ok and stats and stats.size > max_file_size then
+            return true
+          end
+
+          if lang == 'dbout' or vim.bo[buf].filetype == 'dbout' then
+            return true
+          end
+        end,
         -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
         --  If you are experiencing weird indenting issues, add the language to
         --  the list of additional_vim_regex_highlighting and disabled languages for indent.
@@ -1158,6 +1184,78 @@ vim.keymap.set('v', '<C-_>', function()
   require('mini.comment').toggle_lines(s_line, e_line)
 end, { desc = 'Toggle comments' })
 
+-- for allowing pasting of ridiculous amounts of lines into a buffer
+-- might be dangerous to hook a core function
+-- but it's worth it
+vim.keymap.set('n', 'p', function()
+  -- Escape tf out of this hook if it's a macro, cause macros are sacred
+  if vim.fn.reg_executing() ~= '' then
+    vim.cmd('normal! "' .. reg .. 'p')
+    return
+  end
+
+  local reg = vim.v.register == '' and '"' or vim.v.register
+  local text = vim.fn.getreg(reg)
+
+  local bytes_size = #text
+
+  if bytes_size > 250 * 1024 then
+    -- deciding a more readable message
+    local size_str = (bytes_size > (1024 * 1024)) and string.format('%.2f MB', bytes_size / (1024 * 1024)) or string.format('%.2f KB', bytes_size / 1024)
+    local msg = 'Massive paste detected (' .. size_str .. '). Disable Heavy Feats?'
+    local answer = vim.fn.confirm(msg, '&Yes\n&No\n&Abort', 1)
+
+    if answer == 1 then
+      local bufnr = vim.api.nvim_get_current_buf()
+
+      pcall(vim.cmd, 'TSBufDisable highlight')
+      vim.cmd 'setlocal foldmethod=manual'
+
+      vim.cmd 'setlocal nowrap'
+      -- pcall(vim.cmd, 'NoMatchParen')
+      vim.cmd 'setlocal foldmethod=manual'
+      vim.wo.cursorline = false
+      vim.wo.cursorcolumn = false
+
+      vim.b[bufnr].matchparen_timeout = 1
+      vim.b[bufnr].matchparen_insert_timeout = 1
+
+      -- turn off my dear smear cursor because you can't have nice things
+      -- when text grows big
+      local has_smear, smear = pcall(require, 'smear_cursor')
+      if has_smear then
+        smear.enabled = false
+      end
+
+      local clients = vim.lsp.get_clients { bufnr = bufnr }
+      for _, client in ipairs(clients) do
+        vim.lsp.buf_detach_client(bufnr, client.id)
+      end
+
+      -- this undo change is not written to the damn disk
+      local old_undolevels = vim.bo[bufnr].undolevels
+      vim.bo[bufnr].undolevels = -1
+      vim.bo[bufnr].swapfile = false
+
+      -- vim.cmd('normal! "' .. reg .. 'p') -- too damn slow apparently
+      local reg_type = vim.fn.getregtype(reg)
+      vim.api.nvim_put(vim.fn.split(text, '\n'), reg_type, true, true)
+
+      vim.bo[bufnr].undolevels = old_undolevels
+      print('Safety engaged. ' .. size_str .. ' payload pasted.')
+      return
+    elseif answer == 3 or answer == 0 then
+      print 'Paste aborted.'
+      return
+    end
+  end
+
+  -- use the normal paste, for inputs that are not Massive
+  -- vim.cmd('normal! "' .. reg .. 'p')
+  local reg_type = vim.fn.getregtype(reg)
+  vim.api.nvim_put(vim.fn.split(text, '\n', true), reg_type, true, false)
+end, { desc = 'Byte size aware safe paste' })
+
 vim.api.nvim_create_autocmd('FileType', {
   pattern = 'typst',
   callback = function()
@@ -1190,6 +1288,15 @@ vim.api.nvim_create_autocmd('FileType', {
   end,
 })
 
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'dbout',
+  callback = function()
+    vim.opt_local.synmaxcol = 200
+    vim.opt_local.wrap = false
+    vim.opt_local.undolevels = -1
+  end,
+})
+
 vim.opt.tabstop = 2 -- Number of spaces a tab counts for
 vim.opt.softtabstop = 2 -- Number of spaces a tab counts for while editing
 vim.opt.shiftwidth = 2 -- Size of an indent
@@ -1219,3 +1326,237 @@ vim.api.nvim_create_autocmd("FileType",
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
+--
+
+-- Workflow schtuff because yes
+
+local function extract_query_params(text)
+  local params = {}
+  local seen = {}
+  if not text then
+    return params
+  end
+
+  for match in text:gmatch '(__:[%w_]+)' do
+    if not seen[match] then
+      table.insert(params, match)
+      seen[match] = true
+    end
+  end
+  return params
+end
+
+local function generate_kulala_file_from_db()
+  -- ==========================================
+  -- 1. Configuration & Meta-Command Query
+  -- ==========================================
+
+  local db_name = 'dev_vpro_local'
+  local target_dir = vim.fn.getcwd() .. '/api_requests/datatables'
+
+  -- Using \a (unaligned), \t (tuples only/no headers), and explicitly setting the separator to |
+  local query = [[
+        \set QUIET 1
+        \a
+        \t
+        \pset fieldsep '|'
+        SELECT tag, dt_query FROM vpp_datatables_datatable ORDER BY tag ASC;
+    ]]
+
+  -- ==========================================
+  -- 2. Dynamically Resolve DBUI Path
+  -- ==========================================
+  local db_url = nil
+  local dbui_folder = vim.g.db_ui_save_location or (vim.fn.stdpath 'data' .. '/db_ui')
+  local conn_file = vim.fn.expand(dbui_folder) .. '/connections.json'
+
+  local f = io.open(conn_file, 'r')
+  if f then
+    local content = f:read '*a'
+    f:close()
+
+    local ok, conns = pcall(vim.fn.json_decode, content)
+    if ok and type(conns) == 'table' then
+      for _, conn in ipairs(conns) do
+        if conn.name == db_name then
+          db_url = conn.url
+          break
+        end
+      end
+    end
+  end
+
+  if not db_url then
+    return vim.notify("Could not find URL for '" .. db_name .. "'", vim.log.levels.ERROR)
+  end
+
+  -- ==========================================
+  -- 3. Wake up Dadbod & Execute
+  -- ==========================================
+  local has_lazy, lazy = pcall(require, 'lazy')
+  if has_lazy then
+    pcall(lazy.load, { plugins = { 'vim-dadbod' } })
+  end
+
+  local cmd_status, cmd = pcall(vim.fn['db#adapter#dispatch'], db_url, 'interactive')
+  if not cmd_status then
+    return vim.notify('Failed to generate command.', vim.log.levels.ERROR)
+  end
+
+  local exec_status, lines = pcall(vim.fn['db#systemlist'], cmd, query)
+  if not exec_status then
+    return vim.notify('Execution failed.', vim.log.levels.ERROR)
+  end
+
+  -- ==========================================
+  -- 4. The Stateful Multi-Line Parser
+  -- ==========================================
+  local tags = {}
+  local current_entry = nil
+
+  for _, line in ipairs(lines) do
+    -- Fallback: explicitly ignore psql noise just in case \set QUIET 1 fails
+    if line:match '^Tuples only is on' or line:match '^Output format is unaligned' or line:match '^Field separator is' or vim.trim(line) == '' then
+      -- Skip this iteration entirely
+    else
+      -- Look for a tag at the very start of the line, immediately followed by a pipe
+      -- E.g., "projects_issue_list|SELECT..."
+      local tag_match, rest_of_line = line:match '^([%w_]+)|(.*)$'
+
+      if tag_match then
+        -- We found a new row! Start a fresh entry.
+        current_entry = {
+          tag = tag_match,
+          query_text = rest_of_line .. '\n',
+        }
+        table.insert(tags, current_entry)
+      elseif current_entry then
+        -- This line doesn't have a tag, so it must be a continuation of the SQL query.
+        -- We append it using the raw 'line' to preserve your SQL indentation!
+        current_entry.query_text = current_entry.query_text .. line .. '\n'
+      end
+    end
+  end
+
+  if #tags == 0 then
+    return vim.notify('Query returned 0 tags.', vim.log.levels.WARN)
+  end
+
+  -- ==========================================
+  -- 5. Launch Telescope & Generate File
+  -- ==========================================
+  local has_telescope, pickers = pcall(require, 'telescope.pickers')
+  if not has_telescope then
+    return
+  end
+
+  local finders = require 'telescope.finders'
+  local conf = require('telescope.config').values
+  local actions = require 'telescope.actions'
+  local action_state = require 'telescope.actions.state'
+
+  pickers
+    .new({}, {
+      prompt_title = 'Select Tag to Create .http File',
+      finder = finders.new_table {
+        results = tags,
+        entry_maker = function(entry)
+          return {
+            value = entry,
+            display = entry.tag,
+            ordinal = entry.tag,
+          }
+        end,
+      },
+      sorter = conf.generic_sorter {},
+
+      attach_mappings = function(prompt_bufnr)
+        actions.select_default:replace(function()
+          local selection = action_state.get_selected_entry()
+          actions.close(prompt_bufnr)
+
+          if selection then
+            local entry = selection.value
+            local tag = entry.tag
+            local dt_query = entry.query_text
+
+            local params = extract_query_params(dt_query)
+
+            local safe_filename = tag:gsub('[^%w%-_]', '_') .. '.http'
+            local filepath = target_dir .. '/' .. safe_filename
+
+            -- NEW: TRULY TAB-AWARE WINDOW REUSE LOGIC
+            -- ==========================================
+            local function open_reusing_window(path)
+              local target_full_path = vim.fn.fnamemodify(path, ':p')
+
+              -- Tier 1: Look for the EXACT file across ALL tabs
+              for _, win in ipairs(vim.api.nvim_list_wins()) do
+                local buf = vim.api.nvim_win_get_buf(win)
+                local buf_name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ':p')
+
+                if buf_name == target_full_path then
+                  -- 1. Find which tab this window lives in
+                  local tabpage = vim.api.nvim_win_get_tabpage(win)
+                  -- 2. Switch to that tab FIRST
+                  vim.api.nvim_set_current_tabpage(tabpage)
+                  -- 3. Now focus the window
+                  vim.api.nvim_set_current_win(win)
+                  return
+                end
+              end
+
+              -- Tier 2: Look for ANY .http file in the CURRENT tab to reuse the split
+              for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+                local buf = vim.api.nvim_win_get_buf(win)
+                local name = vim.api.nvim_buf_get_name(buf)
+                if name:match '%.http$' then
+                  vim.api.nvim_set_current_win(win)
+                  vim.cmd('edit ' .. path)
+                  return
+                end
+              end
+
+              -- Tier 3: No .http window exists anywhere relevant. Open a new split.
+              vim.cmd('vsplit ' .. path)
+            end
+            -- ==========================================
+
+            if vim.fn.filereadable(filepath) == 1 then
+              vim.notify('Opening existing file: ' .. safe_filename, vim.log.levels.INFO)
+              open_reusing_window(filepath)
+              return
+            end
+
+            vim.fn.mkdir(target_dir, 'p')
+
+            local file = io.open(filepath, 'w')
+            if file then
+              file:write('### Auto-generated request for ' .. tag .. '\n')
+              file:write('GET {{BASE_URL}}/{{DATATABLE_API}}/' .. tag .. '/\n')
+
+              if #params > 0 then
+                for i, p in ipairs(params) do
+                  local prefix = (i == 1) and '?' or '&'
+                  file:write('\t' .. prefix .. p .. '=\n')
+                end
+              end
+
+              file:write 'Accept: application/json\n'
+              file:write 'Authorization: Bearer {{LOCAL_AUTH_TOKEN}}\n'
+              file:close()
+
+              vim.notify('Created new Kulala request: ' .. safe_filename, vim.log.levels.INFO)
+              open_reusing_window(filepath)
+            else
+              vim.notify('Failed to create file.', vim.log.levels.ERROR)
+            end
+          end
+        end)
+        return true
+      end,
+    })
+    :find()
+end
+
+vim.keymap.set('n', '<leader>kt', generate_kulala_file_from_db, { desc = 'Generate .http file from DB Tag' })
