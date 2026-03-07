@@ -319,8 +319,11 @@ require('lazy').setup({
     'chomosuke/typst-preview.nvim',
     lazy = false, -- or ft = 'typst'
     version = '1.*',
-    opts = {}, -- lazy.nvim will implicitly calls `setup {}`
+    opts = {
+      port = 23635
+    }, -- lazy.nvim will implicitly call `setup {}`
   },
+
 
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
@@ -1191,6 +1194,28 @@ vim.opt.tabstop = 2 -- Number of spaces a tab counts for
 vim.opt.softtabstop = 2 -- Number of spaces a tab counts for while editing
 vim.opt.shiftwidth = 2 -- Size of an indent
 vim.opt.expandtab = true -- Use spaces instead of tabs
+
+vim.api.nvim_create_autocmd("FileType",
+  {
+    pattern = "typst",
+    callback = function ()
+      local watch_typst_file = function ()
+        local file = vim.fn.expand("%:p")
+        local git_dir = vim.fn.finddir('.git', '.;')
+        if git_dir == "" then return print("No git route found") end
+        local root = vim.fn.fnamemodify(git_dir, ":h")
+        local name = vim.fn.expand('%:t:r')
+        local output = root .. '/build/' .. name .. '.pdf'
+        local cmd = string.format('typst watch --root "%s" "%s" "%s"', root, file, output)
+
+        vim.cmd('split | term '.. cmd)
+
+      end
+      vim.api.nvim_buf_create_user_command(0, 'TWatch', watch_typst_file, {})
+
+    end
+  }
+)
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
