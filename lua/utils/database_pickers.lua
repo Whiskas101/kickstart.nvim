@@ -89,6 +89,7 @@ function M.create_telescope_workflow(opts)
   end
 end
 
+-- WARN: This is highly unstable, i don't know how to get the ordinals to stop breaking my config
 local async_db_query = async.wrap(db.query, 2)
 function M.dynamic_db_picker(opts)
   return function()
@@ -132,7 +133,7 @@ function M.dynamic_db_picker(opts)
               return {
                 value = row,
                 display = tostring(row[opts.display_column] or 'UNKNOWN'),
-                ordinal = tostring(row[opts.preview_column] or ''),
+                ordinal = tostring(row[opts.preview_column] or 'UNKNOWN'),
               }
             end,
           },
@@ -180,6 +181,85 @@ function M.dynamic_db_picker(opts)
         :find()
     end) -- to ensure there's the db connection url available because coroutines
     -- and UI elements drawing async is poison in neovim (:C)
+  end
+end
+
+function M.static_db_picker(query, opts)
+  return function()
+    opts = opts or {}
+
+    db.with_connection(function(conn)
+      local psql_header = string.format("\\set QUIET 1\n\\a \\t \\pset fieldsep '%s' \\pset recordsep '%s'\n", US, RS)
+      local final_query = psql_header .. query
+
+      db.query(final_query, function(raw_data)
+        if not raw_data or type(raw_data) ~= 'table' then
+          vim.schedule(function()
+            vim.notify('No data returned or query failed.', vim.log.levels.WARN)
+          end)
+          return
+        end
+
+        vim.schedule(function()
+          pickers
+            .new(opts, {
+              prompt_title = opts.title or 'Static DB Query',
+
+              finder = finders.new_table {
+                results = raw_data,
+                entry_maker = function(row)
+                  return {
+                    value = row,
+                    display = tostring(row[opts.display_column] or 'UNKNOWN'),
+                    ordinal = tostring(row[opts.ordinal_column] or row[opts.display_column] or 'UNKNOWN'),
+                  }
+                end,
+              },
+              sorter = conf.generic_sorter(opts),
+
+              previewer = previewers.new_buffer_previewer {
+                title = 'Preview',
+                define_preview = function(self, entry)
+                  local bufnr = self.state.bufnr
+                  local raw_text = tostring(entry.value[opts.preview_column] or '')
+                  local lines = vim.split(raw_text, '\n', { plain = true })
+
+                  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+                  vim.bo[bufnr].filetype = opts.filetype or 'txt'
+                end,
+              },
+
+              attach_mappings = function(prompt_bufnr)
+                actions.select_default:replace(function()
+                  local selection = action_state.get_selected_entry()
+                  if not selection then
+                    return
+                  end
+
+                  actions.close(prompt_bufnr)
+
+                  vim.cmd 'vnew'
+                  local buf = vim.api.nvim_get_current_buf()
+                  vim.bo[buf].buftype = 'nofile'
+                  vim.bo[buf].bufhidden = 'wipe'
+                  vim.bo[buf].filetype = opts.filetype or 'txt'
+
+                  local raw_text = tostring(selection.value[opts.preview_column] or '')
+                  local lines = vim.split(raw_text, '\n', { plain = true })
+                  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+                  if opts.filetype == 'json' and vim.fn.executable 'jq' == 1 then
+                    vim.cmd '%!jq .'
+                  end
+                end)
+
+                return true
+              end,
+            })
+            :find()
+        end)
+      end)
+    end)
   end
 end
 
