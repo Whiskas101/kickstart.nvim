@@ -26,7 +26,6 @@ local function parse_delimited_text(raw_text, delimiter)
 end
 
 local function get_all_connections()
-  local db_url = nil
   local dbui_folder = vim.g.db_ui_save_location or (vim.fn.stdpath 'data' .. '/db_ui')
   local conn_file = vim.fn.expand(dbui_folder) .. '/connections.json'
 
