@@ -1188,14 +1188,15 @@ end, { desc = 'Toggle comments' })
 -- might be dangerous to hook a core function
 -- but it's worth it
 vim.keymap.set('n', 'p', function()
+  local reg = vim.v.register == '' and '"' or vim.v.register
+  local text = vim.fn.getreg(reg)
+  local count = vim.v.count1
+
   -- Escape tf out of this hook if it's a macro, cause macros are sacred
   if vim.fn.reg_executing() ~= '' then
     vim.cmd('normal! "' .. reg .. 'p')
     return
   end
-
-  local reg = vim.v.register == '' and '"' or vim.v.register
-  local text = vim.fn.getreg(reg)
 
   local bytes_size = #text
 
@@ -1250,10 +1251,12 @@ vim.keymap.set('n', 'p', function()
     end
   end
 
-  -- use the normal paste, for inputs that are not Massive
-  -- vim.cmd('normal! "' .. reg .. 'p')
-  local reg_type = vim.fn.getregtype(reg)
-  vim.api.nvim_put(vim.fn.split(text, '\n', true), reg_type, true, false)
+  if count > 1 then
+    vim.cmd(string.format('normal! %d"%sp', count, reg))
+  else
+    local reg_type = vim.fn.getregtype(reg)
+    vim.api.nvim_put(vim.fn.split(text, '\n', true), reg_type, true, false)
+  end
 end, { desc = 'Byte size aware safe paste' })
 
 vim.api.nvim_create_autocmd('FileType', {
