@@ -1305,261 +1305,81 @@ vim.opt.softtabstop = 2 -- Number of spaces a tab counts for while editing
 vim.opt.shiftwidth = 2 -- Size of an indent
 vim.opt.expandtab = true -- Use spaces instead of tabs
 
-vim.api.nvim_create_autocmd("FileType",
-  {
-    pattern = "typst",
-    callback = function ()
-      local watch_typst_file = function ()
-        local file = vim.fn.expand("%:p")
-        local git_dir = vim.fn.finddir('.git', '.;')
-        if git_dir == "" then return print("No git route found") end
-        local root = vim.fn.fnamemodify(git_dir, ":h")
-        local name = vim.fn.expand('%:t:r')
-        local output = root .. '/build/' .. name .. '.pdf'
-        local cmd = string.format('typst watch --root "%s" "%s" "%s"', root, file, output)
-
-        vim.cmd('split | term '.. cmd)
-
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'typst',
+  callback = function()
+    local watch_typst_file = function()
+      local file = vim.fn.expand '%:p'
+      local git_dir = vim.fn.finddir('.git', '.;')
+      if git_dir == '' then
+        return print 'No git route found'
       end
-      vim.api.nvim_buf_create_user_command(0, 'TWatch', watch_typst_file, {})
+      local root = vim.fn.fnamemodify(git_dir, ':h')
+      local name = vim.fn.expand '%:t:r'
+      local output = root .. '/build/' .. name .. '.pdf'
+      local cmd = string.format('typst watch --root "%s" "%s" "%s"', root, file, output)
 
+      vim.cmd('split | term ' .. cmd)
     end
-  }
-)
+    vim.api.nvim_buf_create_user_command(0, 'TWatch', watch_typst_file, {})
+  end,
+})
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
 --
 
 -- Workflow schtuff because yes
+vim.keymap.set('n', '<leader>dbs', function()
+  require('utils.dadbod_client').select_database()
+end, { desc = '[D]ata[B]ase [S]elect Session' })
 
-local function extract_query_params(text)
-  local params = {}
-  local seen = {}
-  if not text then
-    return params
+vim.keymap.set('n', '<leader>kt', function()
+  require('workflows.datatable_to_kulala').generate_kulala_file_from_db()
+end, { desc = 'Generate .http file from DB Tag' })
+
+vim.keymap.set('n', '<leader>ka', function()
+  require('workflows.apiprocessorstructure_viewer').get_apiprocessorstructures()
+end, { desc = 'Pick [A]PI Processor Structure' })
+
+vim.keymap.set('n', '<leader>kgd', function()
+  require('workflows.grep_datatables').grep_datatables()
+end, { desc = '[k] [G]rep [D]atatables' })
+
+vim.keymap.set('n', '<leader>kga', function()
+  require('workflows.grep_apiprocessorstructure').search_apiprocessorstructures()
+end, { desc = '[k] [G]rep [A]piprocessorstructure' })
+
+vim.keymap.set('n', '<leader>kgD', function()
+  require('workflows.custom_vector_workflows').grep_datatables_dynamic()
+end, { desc = '[k] [G]rep [D]atatables_NEW' })
+
+-- for json formatting i got tired of typing :%!jq
+
+vim.keymap.set('n', '<leader>jq', function()
+  if vim.fn.executable 'jq' == 0 then
+    return vim.notify('jq not found on PATH', vim.log.levels.ERROR)
+  end
+  vim.cmd '%!jq .'
+  vim.notify('Formatted buffer as json', vim.log.levels.INFO)
+end, { desc = 'Format current buffer as JSON' })
+
+vim.keymap.set('v', '<leader>jq', function()
+  if vim.fn.executable 'jq' == 0 then
+    return vim.notify('jq is not installed or not in PATH', vim.log.levels.ERROR)
   end
 
-  for match in text:gmatch '(__:[%w_]+)' do
-    if not seen[match] then
-      table.insert(params, match)
-      seen[match] = true
-    end
-  end
-  return params
-end
+  -- vim.fn.line('v') gets where the visual selection started
+  -- vim.fn.line('.') gets where the cursor currently is
+  local v_start = vim.fn.line 'v'
+  local v_end = vim.fn.line '.'
 
-local function generate_kulala_file_from_db()
-  -- ==========================================
-  -- 1. Configuration & Meta-Command Query
-  -- ==========================================
+  -- handle whether the highlighted part is downwards or upwards
+  local line_start = math.min(v_start, v_end)
+  local line_end = math.max(v_start, v_end)
 
-  local db_name = 'dev_vpro_local'
-  local target_dir = vim.fn.getcwd() .. '/api_requests/datatables'
+  -- run the filter command explicitly on the exact line numbers (e.g., "10,15!jq .")
+  vim.cmd(string.format('%d,%d!jq .', line_start, line_end))
 
-  -- Using \a (unaligned), \t (tuples only/no headers), and explicitly setting the separator to |
-  local query = [[
-        \set QUIET 1
-        \a
-        \t
-        \pset fieldsep '|'
-        SELECT tag, dt_query FROM vpp_datatables_datatable ORDER BY tag ASC;
-    ]]
-
-  -- ==========================================
-  -- 2. Dynamically Resolve DBUI Path
-  -- ==========================================
-  local db_url = nil
-  local dbui_folder = vim.g.db_ui_save_location or (vim.fn.stdpath 'data' .. '/db_ui')
-  local conn_file = vim.fn.expand(dbui_folder) .. '/connections.json'
-
-  local f = io.open(conn_file, 'r')
-  if f then
-    local content = f:read '*a'
-    f:close()
-
-    local ok, conns = pcall(vim.fn.json_decode, content)
-    if ok and type(conns) == 'table' then
-      for _, conn in ipairs(conns) do
-        if conn.name == db_name then
-          db_url = conn.url
-          break
-        end
-      end
-    end
-  end
-
-  if not db_url then
-    return vim.notify("Could not find URL for '" .. db_name .. "'", vim.log.levels.ERROR)
-  end
-
-  -- ==========================================
-  -- 3. Wake up Dadbod & Execute
-  -- ==========================================
-  local has_lazy, lazy = pcall(require, 'lazy')
-  if has_lazy then
-    pcall(lazy.load, { plugins = { 'vim-dadbod' } })
-  end
-
-  local cmd_status, cmd = pcall(vim.fn['db#adapter#dispatch'], db_url, 'interactive')
-  if not cmd_status then
-    return vim.notify('Failed to generate command.', vim.log.levels.ERROR)
-  end
-
-  local exec_status, lines = pcall(vim.fn['db#systemlist'], cmd, query)
-  if not exec_status then
-    return vim.notify('Execution failed.', vim.log.levels.ERROR)
-  end
-
-  -- ==========================================
-  -- 4. The Stateful Multi-Line Parser
-  -- ==========================================
-  local tags = {}
-  local current_entry = nil
-
-  for _, line in ipairs(lines) do
-    -- Fallback: explicitly ignore psql noise just in case \set QUIET 1 fails
-    if line:match '^Tuples only is on' or line:match '^Output format is unaligned' or line:match '^Field separator is' or vim.trim(line) == '' then
-      -- Skip this iteration entirely
-    else
-      -- Look for a tag at the very start of the line, immediately followed by a pipe
-      -- E.g., "projects_issue_list|SELECT..."
-      local tag_match, rest_of_line = line:match '^([%w_]+)|(.*)$'
-
-      if tag_match then
-        -- We found a new row! Start a fresh entry.
-        current_entry = {
-          tag = tag_match,
-          query_text = rest_of_line .. '\n',
-        }
-        table.insert(tags, current_entry)
-      elseif current_entry then
-        -- This line doesn't have a tag, so it must be a continuation of the SQL query.
-        -- We append it using the raw 'line' to preserve your SQL indentation!
-        current_entry.query_text = current_entry.query_text .. line .. '\n'
-      end
-    end
-  end
-
-  if #tags == 0 then
-    return vim.notify('Query returned 0 tags.', vim.log.levels.WARN)
-  end
-
-  -- ==========================================
-  -- 5. Launch Telescope & Generate File
-  -- ==========================================
-  local has_telescope, pickers = pcall(require, 'telescope.pickers')
-  if not has_telescope then
-    return
-  end
-
-  local finders = require 'telescope.finders'
-  local conf = require('telescope.config').values
-  local actions = require 'telescope.actions'
-  local action_state = require 'telescope.actions.state'
-
-  pickers
-    .new({}, {
-      prompt_title = 'Select Tag to Create .http File',
-      finder = finders.new_table {
-        results = tags,
-        entry_maker = function(entry)
-          return {
-            value = entry,
-            display = entry.tag,
-            ordinal = entry.tag,
-          }
-        end,
-      },
-      sorter = conf.generic_sorter {},
-
-      attach_mappings = function(prompt_bufnr)
-        actions.select_default:replace(function()
-          local selection = action_state.get_selected_entry()
-          actions.close(prompt_bufnr)
-
-          if selection then
-            local entry = selection.value
-            local tag = entry.tag
-            local dt_query = entry.query_text
-
-            local params = extract_query_params(dt_query)
-
-            local safe_filename = tag:gsub('[^%w%-_]', '_') .. '.http'
-            local filepath = target_dir .. '/' .. safe_filename
-
-            -- NEW: TRULY TAB-AWARE WINDOW REUSE LOGIC
-            -- ==========================================
-            local function open_reusing_window(path)
-              local target_full_path = vim.fn.fnamemodify(path, ':p')
-
-              -- Tier 1: Look for the EXACT file across ALL tabs
-              for _, win in ipairs(vim.api.nvim_list_wins()) do
-                local buf = vim.api.nvim_win_get_buf(win)
-                local buf_name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ':p')
-
-                if buf_name == target_full_path then
-                  -- 1. Find which tab this window lives in
-                  local tabpage = vim.api.nvim_win_get_tabpage(win)
-                  -- 2. Switch to that tab FIRST
-                  vim.api.nvim_set_current_tabpage(tabpage)
-                  -- 3. Now focus the window
-                  vim.api.nvim_set_current_win(win)
-                  return
-                end
-              end
-
-              -- Tier 2: Look for ANY .http file in the CURRENT tab to reuse the split
-              for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-                local buf = vim.api.nvim_win_get_buf(win)
-                local name = vim.api.nvim_buf_get_name(buf)
-                if name:match '%.http$' then
-                  vim.api.nvim_set_current_win(win)
-                  vim.cmd('edit ' .. path)
-                  return
-                end
-              end
-
-              -- Tier 3: No .http window exists anywhere relevant. Open a new split.
-              vim.cmd('vsplit ' .. path)
-            end
-            -- ==========================================
-
-            if vim.fn.filereadable(filepath) == 1 then
-              vim.notify('Opening existing file: ' .. safe_filename, vim.log.levels.INFO)
-              open_reusing_window(filepath)
-              return
-            end
-
-            vim.fn.mkdir(target_dir, 'p')
-
-            local file = io.open(filepath, 'w')
-            if file then
-              file:write('### Auto-generated request for ' .. tag .. '\n')
-              file:write('GET {{BASE_URL}}/{{DATATABLE_API}}/' .. tag .. '/\n')
-
-              if #params > 0 then
-                for i, p in ipairs(params) do
-                  local prefix = (i == 1) and '?' or '&'
-                  file:write('\t' .. prefix .. p .. '=\n')
-                end
-              end
-
-              file:write 'Accept: application/json\n'
-              file:write 'Authorization: Bearer {{LOCAL_AUTH_TOKEN}}\n'
-              file:close()
-
-              vim.notify('Created new Kulala request: ' .. safe_filename, vim.log.levels.INFO)
-              open_reusing_window(filepath)
-            else
-              vim.notify('Failed to create file.', vim.log.levels.ERROR)
-            end
-          end
-        end)
-        return true
-      end,
-    })
-    :find()
-end
-
-vim.keymap.set('n', '<leader>kt', generate_kulala_file_from_db, { desc = 'Generate .http file from DB Tag' })
+  vim.notify('Formatted selection with jq', vim.log.levels.INFO)
+end, { desc = 'Format selection with jq' })
