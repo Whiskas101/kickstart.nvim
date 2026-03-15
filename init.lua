@@ -335,10 +335,9 @@ require('lazy').setup({
     lazy = false, -- or ft = 'typst'
     version = '1.*',
     opts = {
-      port = 23635
+      port = 23635,
     }, -- lazy.nvim will implicitly call `setup {}`
   },
-
 
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
@@ -1338,21 +1337,25 @@ vim.keymap.set('n', '<leader>kt', function()
   require('workflows.datatable_to_kulala').generate_kulala_file_from_db()
 end, { desc = 'Generate .http file from DB Tag' })
 
-vim.keymap.set('n', '<leader>ka', function()
-  require('workflows.apiprocessorstructure_viewer').get_apiprocessorstructures()
-end, { desc = 'Pick [A]PI Processor Structure' })
+-- vim.keymap.set('n', '<leader>ka', function()
+--   require('workflows.custom_vector_workflows').view_apiprocessor_structure()
+-- end, { desc = 'Pick [A]PI Processor Structure' })
 
-vim.keymap.set('n', '<leader>kgd', function()
-  require('workflows.grep_datatables').grep_datatables()
-end, { desc = '[k] [G]rep [D]atatables' })
-
-vim.keymap.set('n', '<leader>kga', function()
-  require('workflows.grep_apiprocessorstructure').search_apiprocessorstructures()
-end, { desc = '[k] [G]rep [A]piprocessorstructure' })
+vim.keymap.set('n', '<leader>ksd', function()
+  require('workflows.custom_vector_workflows').search_datatable_tags()
+end, { desc = '[k] [S]earch [D]atatables' })
 
 vim.keymap.set('n', '<leader>kgD', function()
   require('workflows.custom_vector_workflows').grep_datatables_dynamic()
 end, { desc = '[k] [G]rep [D]atatables_NEW' })
+
+vim.keymap.set('n', '<leader>ksa', function()
+  require('workflows.custom_vector_workflows').search_apiprocessorstructures()
+end, { desc = '[k] [S]earch [A]piprocessorstructure' })
+
+vim.keymap.set('n', '<leader>kga', function()
+  require('workflows.custom_vector_workflows').grep_apiprocessorstructures()
+end, { desc = '[k] [G]rep [A]piprocessorstructure' })
 
 -- for json formatting i got tired of typing :%!jq
 
